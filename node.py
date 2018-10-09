@@ -1,17 +1,33 @@
-import time
 import ast
+import random
+import struct
+import base64
 
 import defs
-from lwcp import LWCommProtocol
 
-class NodeServer():
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP
+
+class Node():
     def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT):
         self.encryption_mode = enc_mode
+        self.log_id = 'Node'
         return
 
     def log(self, message):
-        print("[NodeServer] {}".format(message))
+        print("[{}] {}".format(self.log_id, message))
         return
+
+    def extract_content(self, raw_message):
+        # Disallow attempts to decode blank messages
+        if raw_message == None:
+            return ''
+
+        if len(raw_message) <= 0:
+            return ''
+
+        content = ast.literal_eval(raw_message['content'].decode())
+        return content
 
     def print_message(self, message):
         self.log("Header:")
@@ -22,108 +38,51 @@ class NodeServer():
         self.log(" +-{}".format(message['content']))
         return
 
-    def run(self):
-        # Initialize Comms
-        cx = LWCommProtocol()
+    def generate_data(self):
+        data = []
+        for i in range(0, 10):
+            data.append( random.random() * 100.0 )
 
-        start_time = time.time()
-        # Wait for and receive data
-        msg = cx.receive()
-        self.print_message(msg)
+        return data
 
-        # Store the sample data
-        data = ast.literal_eval(msg['content'].decode())
-
-        # Send storage acknowledgement
-        cx.send(str({ 'code' : defs.RESP_ACK }))
-
-        if self.encryption_mode == defs.ENC_MODE_FHE:
-            # TODO (FHE Mode/) Receive request
-            # TODO (FHE Mode) Operate on the sample data
-            # TODO (FHE Mode) Transmit Result
-            pass
-
-        elif self.encryption_mode == defs.ENC_MODE_RSA:
-            msg = cx.receive()
-            request = ast.literal_eval(msg['content'].decode())
-            self.log("Decoding request [{}]...".format(request['code']))
-            if request['code'] == defs.REQ_GET_DATA:
-                lower_idx = request['params']['lower_idx']
-                higher_idx = request['params']['higher_idx']
-                self.log("  Params:")
-                self.log("    Lower Index: {}".format(lower_idx))
-                self.log("    Higher Index: {}".format(higher_idx))
-
-                response = { 'code' : defs.RESP_DATA,
-                             'data' : data[lower_idx:higher_idx] }
-
-                # Transmit back raw sample data
-                cx.send(str(response))
+    def encrypt_data(self, data):
+        if self.encryption_mode == defs.ENC_MODE_RSA:
             
+            # Load the public key file
+            pk_file = open(defs.FILENAME_PUBLIC_KEY, "rb")
+            public_key = pk_file.read()
+            pk_file.close()
 
-        end_time = time.time()
+            rsa_key = RSA.importKey(public_key)
+            rsa_key = PKCS1_OAEP.new(rsa_key)
 
-        # TODO Show result and benchmark
-        self.log("   Time Elapsed: {}".format(end_time - start_time))
+            enc_data = []
+            for d in data:
+                # self.log("Data Part: {}".format(d))
+                ciphertext = rsa_key.encrypt(struct.pack('d',d))
+                enc_data.append(base64.b64encode(ciphertext))
 
-        return
+            return enc_data
 
-class NodeClient():
-    def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT):
-        self.encryption_mode = enc_mode
-        return
+        return data
 
-    def log(self, message):
-        print("[NodeClient] {}".format(message))
-        return
+    def decrypt_data(self, raw_data):
+        if self.encryption_mode == defs.ENC_MODE_RSA:
 
-    def run(self):
-        # TODO Initialize Comms
-        cx = LWCommProtocol()
+            # Load the public key file
+            pk_file = open(defs.FILENAME_PRIVATE_KEY, "rb")
+            private_key = pk_file.read()
+            pk_file.close()
 
-        # TODO Create the sample data
-        start_time = time.time()
-        # TODO Encrypt the sample data
-        # TODO Transmit the sample data
-        cx.send(str([1, 2, 3, 4, 5, 6, 7, 8]))
+            rsa_key = RSA.importKey(private_key)
+            rsa_key = PKCS1_OAEP.new(rsa_key)
 
-        # Receive server acknowledge
-        msg = cx.receive()
-        response = ast.literal_eval(msg['content'].decode())
-        if response['code'] != defs.RESP_ACK:
-            self.log("Error: Node Server ACK not received!")
-            return
+            decrypted_data = []
+            for raw in raw_data:
+                enc_data = base64.b64decode(raw)
+                decrypted_data.append( rsa_key.decrypt(enc_data) )
 
-        if self.encryption_mode == defs.ENC_MODE_FHE:
-            # TODO (FHE Mode) Encrypt operation for sample data
-            # TODO (FHE Mode) Transmit operation for sample data
-            # TODO (FHE Mode) Receive result from server node
-            pass
+            return decrypted_data
 
-        elif self.encryption_mode == defs.ENC_MODE_RSA:
-            # Request sample data from server node
-            request = { 'code' : defs.REQ_GET_DATA,
-                        'params' : { 'lower_idx' : 0, 
-                                     'higher_idx' : 7 } }
-            cx.send(str(request))
-
-            # Receive data from server node
-            server_data = None
-
-            msg = cx.receive()
-            response = ast.literal_eval(msg['content'].decode())
-            if response['code'] == defs.RESP_DATA:
-                server_data = response['data']
-
-            # TODO Decrypt received data
-
-            # TODO Operate on the sample data
-            self.log("Retrieved data: {}".format(server_data))
-
-        end_time = time.time()
-
-        # TODO Show result and benchmark
-        self.log("   Time Elapsed: {}".format(end_time - start_time))
-
-        return
+        return raw_data
 

@@ -1,7 +1,8 @@
 from sys import argv
 
 import defs
-from node import NodeServer, NodeClient
+from node_client import NodeClient
+from node_server import NodeServer
 
 class NodeRunner():
     def __init__(self, node_type=defs.NODE_UNKNOWN, 

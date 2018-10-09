@@ -34,6 +34,10 @@ class LWCommProtocol(NodeComm):
 
     def receive(self):
         raw_message = NodeComm.receive(self)
+        # self.log("Raw Message: [{}]({})".format(raw_message, len(raw_message)))
+        if raw_message == None or len(raw_message) <= 0:
+            return None
+
         protocol_message = ast.literal_eval(raw_message)
 
         return protocol_message
