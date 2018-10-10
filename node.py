@@ -1,16 +1,13 @@
 import ast
 import random
-import struct
-import base64
 
 import defs
-
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_OAEP
+from crypto_engine import CryptoEngine, RSACryptoEngine, FHECryptoEngine
 
 class Node():
     def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT):
         self.encryption_mode = enc_mode
+        self.crypto_engine = None
         self.log_id = 'Node'
         return
 
@@ -22,6 +19,8 @@ class Node():
         # Disallow attempts to decode blank messages
         if raw_message == None:
             return ''
+
+        self.log("RAW MESSAGE : {}".format(str(raw_message)))
 
         if len(raw_message) <= 0:
             return ''
@@ -45,44 +44,14 @@ class Node():
 
         return data
 
-    def encrypt_data(self, data):
+    def init_crypto_engine(self, use_old_keys=False):
         if self.encryption_mode == defs.ENC_MODE_RSA:
-            
-            # Load the public key file
-            pk_file = open(defs.FILENAME_PUBLIC_KEY, "rb")
-            public_key = pk_file.read()
-            pk_file.close()
+            self.crypto_engine = RSACryptoEngine()
 
-            rsa_key = RSA.importKey(public_key)
-            rsa_key = PKCS1_OAEP.new(rsa_key)
+        else:
+            self.crypto_engine = CryptoEngine()
 
-            enc_data = []
-            for d in data:
-                # self.log("Data Part: {}".format(d))
-                ciphertext = rsa_key.encrypt(struct.pack('d',d))
-                enc_data.append(base64.b64encode(ciphertext))
+        self.crypto_engine.initialize(use_old_keys=use_old_keys)
 
-            return enc_data
-
-        return data
-
-    def decrypt_data(self, raw_data):
-        if self.encryption_mode == defs.ENC_MODE_RSA:
-
-            # Load the public key file
-            pk_file = open(defs.FILENAME_PRIVATE_KEY, "rb")
-            private_key = pk_file.read()
-            pk_file.close()
-
-            rsa_key = RSA.importKey(private_key)
-            rsa_key = PKCS1_OAEP.new(rsa_key)
-
-            decrypted_data = []
-            for raw in raw_data:
-                enc_data = base64.b64decode(raw)
-                decrypted_data.append( rsa_key.decrypt(enc_data) )
-
-            return decrypted_data
-
-        return raw_data
+        return
 

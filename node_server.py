@@ -12,6 +12,9 @@ class NodeServer(Node):
         return
 
     def run(self):
+        # Initialize Encryption Engine
+        self.init_crypto_engine(use_old_keys=True)
+
         # Initialize Comms
         cx = LWCommProtocol()
         cx.listen()

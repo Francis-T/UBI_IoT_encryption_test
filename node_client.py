@@ -17,6 +17,9 @@ class NodeClient(Node):
         return
 
     def run(self):
+        # Initialize Encryption Engine
+        self.init_crypto_engine(use_old_keys=True)
+
         # Initialize Comms
         cx = LWCommProtocol()
         cx.connect()
@@ -27,9 +30,10 @@ class NodeClient(Node):
         start_time = time.time()
 
         # Encrypt the sample data
-        encrypted_sample_data = self.encrypt_data(sample_data)
+        encrypted_sample_data = self.crypto_engine.encrypt(sample_data)
 
         # Transmit the sample data
+        self.log("Sending sample data...")
         cx.send(str(encrypted_sample_data))
 
         # Receive server acknowledge
@@ -67,7 +71,7 @@ class NodeClient(Node):
                 server_data = response['data']
 
             # Decrypt received data
-            received_data = self.decrypt_data(response['data'])
+            received_data = self.crypto_engine.decrypt(response['data'])
 
             # TODO Operate on the sample data
             for i in range(0, len(received_data)):

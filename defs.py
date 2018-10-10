@@ -25,7 +25,9 @@ RESP_DATA           = 'DATA'
 
 MAX_MSG_BUF         = 1024
 
-FILENAME_PUBLIC_KEY     = 'public.key'
-FILENAME_PRIVATE_KEY    = 'private.key'
+FN_RSA_PUBLIC_KEY   = 'rsa_public.key'
+FN_RSA_PRIVATE_KEY  = 'rsa_private.key'
+FN_FHE_PUBLIC_KEY   = 'fhe_public.key'
+FN_FHE_PRIVATE_KEY  = 'fhe_private.key'
 
 
