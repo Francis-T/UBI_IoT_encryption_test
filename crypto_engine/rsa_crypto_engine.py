@@ -37,16 +37,18 @@ class RSACryptoEngine(CryptoEngine):
         # Export the private key
         self.log("Writing private key...")
         file_priv_key = open(defs.FN_RSA_PRIVATE_KEY, "wb")
-        self.private_key = new_key.exportKey("PEM")
-        file_priv_key.write(self.private_key)
+        file_priv_key.write(new_key.exportKey("PEM"))
         file_priv_key.close()
+
+        self.private_key = new_key
 
         # Export the public key
         self.log("Writing public key...")
         file_pub_key = open(defs.FN_RSA_PUBLIC_KEY, "wb")
-        self.public_key = new_key.publickey().exportKey("PEM")
-        file_pub_key.write(self.public_key)
+        file_pub_key.write(new_key.publickey().exportKey("PEM"))
         file_pub_key.close()
+
+        self.public_key = new_key.publickey()
 
         return True
 
@@ -97,7 +99,7 @@ class RSACryptoEngine(CryptoEngine):
         decrypted_data = []
         for raw in raw_data:
             enc_data = base64.b64decode(raw)
-            decrypted_data.append( rsa_key.decrypt(enc_data) )
+            decrypted_data.append( struct.unpack('d', rsa_key.decrypt(enc_data))[0] )
 
         return decrypted_data
 

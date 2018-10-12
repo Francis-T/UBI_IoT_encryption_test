@@ -48,6 +48,9 @@ class Node():
         if self.encryption_mode == defs.ENC_MODE_RSA:
             self.crypto_engine = RSACryptoEngine()
 
+        elif self.encryption_mode == defs.ENC_MODE_FHE:
+            self.crypto_engine = FHECryptoEngine()
+
         else:
             self.crypto_engine = CryptoEngine()
 

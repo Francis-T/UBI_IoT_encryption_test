@@ -19,6 +19,7 @@ TX_PORT             = 50006
 RX_PORT             = 50006
 
 REQ_GET_DATA        = 'GET_DATA'
+REQ_AVG_DATA        = 'AVG_DATA'
 
 RESP_ACK            = 'ACK'
 RESP_DATA           = 'DATA'

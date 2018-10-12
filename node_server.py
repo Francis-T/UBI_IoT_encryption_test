@@ -31,7 +31,26 @@ class NodeServer(Node):
         cx.send(str({ 'code' : defs.RESP_ACK }))
 
         if self.encryption_mode == defs.ENC_MODE_FHE:
-            # TODO (FHE Mode/) Receive request
+            # (FHE Mode/) Receive request
+            msg = cx.receive()
+            request = self.extract_content(msg)
+            if request == None:
+                self.log("Error: Content is empty")
+                cx.close()
+                return
+
+            self.log("Decoding request [{}]...".format(request['code']))
+            if request['code'] == defs.REQ_AVG_DATA:
+                lower_idx = request['params']['lower_idx']
+                higher_idx = request['params']['higher_idx']
+
+                result = self.crypto_engine.evaluate( data, lower_idx=lower_idx, higher_idx=higher_idx)
+                response = { 'code' : defs.RESP_DATA,
+                             'data' : [ result ] }
+
+                # Transmit back raw sample data
+                cx.send(str(response))
+
             # TODO (FHE Mode) Operate on the sample data
             # TODO (FHE Mode) Transmit Result
             pass

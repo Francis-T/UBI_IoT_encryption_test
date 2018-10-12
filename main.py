@@ -7,7 +7,7 @@ from crypto_engine import CryptoEngine, RSACryptoEngine, FHECryptoEngine
 
 class EncryptedCommsTest():
     def __init__(self):
-        self.encryption_mode = defs.ENC_MODE_RSA
+        self.encryption_mode = defs.ENC_MODE_FHE
         return
 
     def log(self, message):
