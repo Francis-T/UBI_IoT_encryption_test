@@ -39,7 +39,7 @@ class Node():
 
     def generate_data(self):
         data = []
-        for i in range(0, 10):
+        for i in range(0, 100):
             data.append( random.random() * 100.0 )
 
         return data
@@ -52,7 +52,7 @@ class Node():
             self.crypto_engine = FHECryptoEngine()
 
         else:
-            self.crypto_engine = CryptoEngine()
+            self.crypto_engine = CryptoEngine(defs.ENC_MODE_DEFAULT)
 
         self.crypto_engine.initialize(use_old_keys=use_old_keys)
 

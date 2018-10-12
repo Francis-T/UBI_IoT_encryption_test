@@ -102,8 +102,16 @@ class NodeComm():
         return message.decode()
 
     def close(self):
+        # If server side, notify clients of shutdown
+        if self.role == defs.ROLE_SERVER:
+            msg = self.receive()
+            self.log(msg)
+            self.sock.shutdown(socket.SHUT_RDWR)
+
+        else:
+            self.sock.shutdown(socket.SHUT_RDWR)
+
         self.log("Closing socket...")
-        self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
         self.log("Done")
 

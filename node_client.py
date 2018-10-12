@@ -5,6 +5,9 @@ import defs
 from lwcp import LWCommProtocol
 from node import Node
 
+LOWER_IDX = 25
+HIGHER_IDX = 50
+
 class NodeClient(Node):
     def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT):
         Node.__init__(self, enc_mode)
@@ -53,8 +56,8 @@ class NodeClient(Node):
         if self.encryption_mode == defs.ENC_MODE_FHE:
             # Request averaging operation to be performed by the server node
             request = { 'code' : defs.REQ_AVG_DATA,
-                        'params' : { 'lower_idx' : 0, 
-                                     'higher_idx' : 7 } }
+                        'params' : { 'lower_idx' : LOWER_IDX, 
+                                     'higher_idx' : HIGHER_IDX } }
 
             cx.send(str(request))
 
@@ -77,8 +80,8 @@ class NodeClient(Node):
         elif self.encryption_mode == defs.ENC_MODE_RSA:
             # Request sample data from server node
             request = { 'code' : defs.REQ_GET_DATA,
-                        'params' : { 'lower_idx' : 0, 
-                                     'higher_idx' : 7 } }
+                        'params' : { 'lower_idx' : LOWER_IDX, 
+                                     'higher_idx' : HIGHER_IDX } }
             cx.send(str(request))
 
             # Receive data from server node
@@ -113,10 +116,10 @@ class NodeClient(Node):
                 self.log("{} : {:11.9f}                {:11.9f}".format(match, sample_data[i], received_data[i]))
 
         ave = 0.0
-        for d in sample_data[0:7]:
+        for d in sample_data[LOWER_IDX:HIGHER_IDX]:
             ave += d
 
-        ave = ave / len(sample_data[0:7])
+        ave = ave / len(sample_data[LOWER_IDX:HIGHER_IDX])
 
         self.log("Final Result: {}".format(result))
         self.log("Expected Result: {}".format(ave))
