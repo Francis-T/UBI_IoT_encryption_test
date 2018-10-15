@@ -2,25 +2,53 @@ import ast
 import random
 
 import defs
+from attrdict import AttrDict
 from crypto_engine import CryptoEngine, RSACryptoEngine, FHECryptoEngine
 
 class Node():
-    def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT):
+    def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT, 
+                       max_buf_size=defs.MAX_MSG_BUF,
+                       data_size=defs.DEFAULT_DATA_SIZE):
+
         self.encryption_mode = enc_mode
         self.crypto_engine = None
         self.log_id = 'Node'
+        self.data_size = data_size
+        self.max_buf_size = max_buf_size
+
+        self.ts = {
+            'overall'       : { 'start' : None, 'end' : None },
+            'evaluate'      : { 'start' : None, 'end' : None },
+            'transmit'      : { 'start' : None, 'end' : None },
+            'transmit_xtr'  : { 'start' : None, 'end' : None },
+            'transmit_rcv'  : { 'start' : None, 'end' : None },
+            'transmit_ack'  : { 'start' : None, 'end' : None },
+            'req_result'    : { 'start' : None, 'end' : None },
+            'encrypt'       : { 'start' : None, 'end' : None },
+            'decrypt'       : { 'start' : None, 'end' : None },
+        }
+
         return
 
     def log(self, message):
         print("[{}] {}".format(self.log_id, message))
         return
 
+    def print_timestamps(self):
+        self.log("Timestamps:")
+        for key in self.ts.keys():
+            if (self.ts[key]["start"] == None) or \
+               (self.ts[key]["end"] == None): 
+                continue
+
+            self.log("    {} {:11.9f} millisecs".format(key, (self.ts[key]["end"] - self.ts[key]["start"]) * 1000.0))
+
+        return
+
     def extract_content(self, raw_message):
         # Disallow attempts to decode blank messages
         if raw_message == None:
             return ''
-
-        self.log("RAW MESSAGE : {}".format(str(raw_message)))
 
         if len(raw_message) <= 0:
             return ''
@@ -39,7 +67,7 @@ class Node():
 
     def generate_data(self):
         data = []
-        for i in range(0, 100):
+        for i in range(0, self.data_size):
             data.append( random.random() * 100.0 )
 
         return data

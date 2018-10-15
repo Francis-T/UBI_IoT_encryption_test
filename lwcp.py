@@ -5,21 +5,18 @@ import defs
 from comms import NodeComm
 
 class LWCommProtocol(NodeComm):
-    def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT):
-        NodeComm.__init__(self)
+    def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT,
+                       max_buf_size=defs.MAX_MSG_BUF):
+
+        NodeComm.__init__(self, max_buf_size=max_buf_size)
         self.encryption_mode = enc_mode
+
         return
 
     def send(self, message):
         header  = None
-        content = None
-        if self.encryption_mode != defs.ENC_MODE_NONE:
-            # If an encryption mode was set, then we have to encrypt
-            #   the message first before we send it out
-            # TODO
-            content = message
-        else:
-            content = message
+        # TODO Always check if the message being sent is valid
+        content = message
 
         # Create the header
         header = { 'ts' : time.time(), 
@@ -34,7 +31,6 @@ class LWCommProtocol(NodeComm):
 
     def receive(self):
         raw_message = NodeComm.receive(self)
-        # self.log("Raw Message: [{}]({})".format(raw_message, len(raw_message)))
         if raw_message == None or len(raw_message) <= 0:
             return None
 

@@ -1,5 +1,7 @@
 import time
+import datetime
 import struct
+import os.path
 
 import defs
 from lwcp import LWCommProtocol
@@ -9,8 +11,11 @@ LOWER_IDX = 25
 HIGHER_IDX = 50
 
 class NodeClient(Node):
-    def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT):
-        Node.__init__(self, enc_mode)
+    def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT,
+                       max_buf_size=defs.MAX_MSG_BUF,
+                       data_size=defs.DEFAULT_DATA_SIZE):
+
+        Node.__init__(self, enc_mode=enc_mode, data_size=data_size, max_buf_size=max_buf_size)
         self.log_id = 'NodeClient'
 
         return
@@ -19,27 +24,65 @@ class NodeClient(Node):
         print("[NodeClient] {}".format(message))
         return
 
+    def save_results(self):
+        result_str = "{},{},{},{},{},{},{},{},{}\n".format(
+                        str(datetime.datetime(1,1,1).now()),
+                        self.max_buf_size,
+                        self.data_size,
+                        str(self.ts["overall"]["end"] - self.ts["overall"]["start"]),
+                        str(self.ts["encrypt"]["end"] - self.ts["encrypt"]["start"]),
+                        str(self.ts["transmit"]["end"] - self.ts["transmit"]["start"]),
+                        str(self.ts["transmit_ack"]["end"] - self.ts["transmit_ack"]["start"]),
+                        str(self.ts["req_result"]["end"] - self.ts["req_result"]["start"]),
+                        str(self.ts["decrypt"]["end"] - self.ts["decrypt"]["start"]) )
+
+        should_write_headers = False
+        if not os.path.isfile(defs.FN_CLIENT_LOG): 
+            should_write_headers = True
+
+        csv_file = open(defs.FN_CLIENT_LOG, "a")
+        if should_write_headers:
+            csv_file.write("{},{},{},{},{},{},{},{},{}\n".format(
+                                "ts",
+                                "max_buf_size",
+                                "data_size",
+                                "overall",
+                                "encrypt",
+                                "transmit",
+                                "transmit_acknowledge",
+                                "request_results",
+                                "decrypt" ))
+
+        csv_file.write(result_str)
+        csv_file.close()
+        return
+
     def run(self):
         # Initialize Encryption Engine
         self.init_crypto_engine(use_old_keys=True)
 
         # Initialize Comms
-        cx = LWCommProtocol()
+        cx = LWCommProtocol(max_buf_size=self.max_buf_size)
         cx.connect()
 
         # Create the sample data
         sample_data = self.generate_data()
 
-        start_time = time.time()
+        self.ts["overall"]["start"] = time.time()
 
         # Encrypt the sample data
+        self.ts["encrypt"]["start"] = time.time()
         encrypted_sample_data = self.crypto_engine.encrypt(sample_data)
+        self.ts["encrypt"]["end"] = time.time()
 
         # Transmit the sample data
         self.log("Sending sample data...")
+        self.ts["transmit"]["start"] = time.time()
         cx.send(str(encrypted_sample_data))
+        self.ts["transmit"]["end"]   = time.time()
 
         # Receive server acknowledge
+        self.ts["transmit_ack"]["start"] = time.time()
         msg = cx.receive()
         response = self.extract_content(msg)
         if response == None:
@@ -52,8 +95,11 @@ class NodeClient(Node):
             cx.close()
             return
 
+        self.ts["transmit_ack"]["end"] = time.time()
+
         result = 0.0
         if self.encryption_mode == defs.ENC_MODE_FHE:
+            self.ts["req_result"]["start"] = time.time()
             # Request averaging operation to be performed by the server node
             request = { 'code' : defs.REQ_AVG_DATA,
                         'params' : { 'lower_idx' : LOWER_IDX, 
@@ -72,8 +118,12 @@ class NodeClient(Node):
             if response['code'] == defs.RESP_DATA:
                 server_data = response['data']
 
+            self.ts["req_result"]["end"] = time.time()
+
             # Decrypt received data
+            self.ts["decrypt"]["start"] = time.time()
             received_data = self.crypto_engine.decrypt(response['data'])
+            self.ts["decrypt"]["end"]   = time.time()
 
             result = received_data[0]
 
@@ -93,7 +143,9 @@ class NodeClient(Node):
                 server_data = response['data']
 
             # Decrypt received data
+            self.ts["decrypt"]["start"] = time.time()
             received_data = self.crypto_engine.decrypt(response['data'])
+            self.ts["decrypt"]["end"]   = time.time()
 
             # Perform computation
             for i in range(0, len(received_data)):
@@ -105,7 +157,7 @@ class NodeClient(Node):
 
                 result = result / len(received_data)
 
-        end_time = time.time()
+        self.ts["overall"]["end"] = time.time()
 
         # Show result and benchmark
         self.log("Comparing Results:")
@@ -115,6 +167,7 @@ class NodeClient(Node):
                 match = 'O' if sample_data[i] == received_data[i] else 'X'
                 self.log("{} : {:11.9f}                {:11.9f}".format(match, sample_data[i], received_data[i]))
 
+        # TODO Move this to a function
         ave = 0.0
         for d in sample_data[LOWER_IDX:HIGHER_IDX]:
             ave += d
@@ -124,7 +177,8 @@ class NodeClient(Node):
         self.log("Final Result: {}".format(result))
         self.log("Expected Result: {}".format(ave))
 
-        self.log("   Time Elapsed: {}".format(end_time - start_time))
+        self.print_timestamps()
+        self.save_results()
 
         # Close comms
         cx.close()

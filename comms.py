@@ -1,10 +1,11 @@
 import defs
 import socket
 
+import time
 from time import sleep
 
 class NodeComm():
-    def __init__(self):
+    def __init__(self, max_buf_size=defs.MAX_MSG_BUF):
         self.tx_host = defs.TX_HOST
         self.tx_port = defs.TX_PORT
 
@@ -15,6 +16,8 @@ class NodeComm():
         self.conn = None
         self.conn_addr = None
         self.role = defs.ROLE_UNKNOWN
+        
+        self.max_buf_size = max_buf_size
     
         return
 
@@ -56,16 +59,24 @@ class NodeComm():
         bytes_sent = 0
         bytes_next = 0
 
+        start_time = time.time()
         while bytes_sent < len(buf) - 1:
-            if ((bytes_sent + defs.MAX_MSG_BUF) >= len(buf)):
+            if ((bytes_sent + self.max_buf_size) >= len(buf)):
                 bytes_next = len(buf)
             else:
-                bytes_next = bytes_sent + defs.MAX_MSG_BUF
+                bytes_next = bytes_sent + self.max_buf_size
 
             bytes_sent += send_func( buf[bytes_sent:bytes_next])
+            # self.log("Time Elapsed: {}".format(time.time() - start_time))
             # self.log("Bytes Sent: {}".format(bytes_sent))
 
-        # self.log("Send finished")
+        message_size = len(buf) / 1000
+        elapsed_time = (time.time() - start_time)
+
+        self.log("Stats:")
+        self.log("    Tx Rate: {:5.2f} kb/sec".format(message_size / elapsed_time))
+        self.log("    Message Size: {} kb".format(message_size))
+        self.log("    Elapsed Time: {} sec".format(elapsed_time))
 
         return
 
@@ -84,21 +95,30 @@ class NodeComm():
 
         message = b''
 
+        start_time = time.time()
         while True:
-            data = recv_func(defs.MAX_MSG_BUF)
+            data = recv_func(self.max_buf_size)
             if not data: 
                 self.log("No data received")
                 break
 
             message += data
 
-            if len(data) < defs.MAX_MSG_BUF: 
+            if len(data) < self.max_buf_size: 
                 self.log("Length is less than max")
                 break
 
+            # self.log("Time Elapsed: {}".format(time.time() - start_time))
             # self.log("Bytes Received: {}".format(len(data)))
 
-        # self.log("Receive finished")
+        message_size = len(message) / 1000
+        elapsed_time = (time.time() - start_time)
+
+        self.log("Stats:")
+        self.log("    Rx Rate: {:5.2f} kb/sec".format(message_size / elapsed_time))
+        self.log("    Message Size: {} kb".format(message_size))
+        self.log("    Elapsed Time: {} sec".format(elapsed_time))
+
         return message.decode()
 
     def close(self):
