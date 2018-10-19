@@ -18,12 +18,21 @@ class NodeComm():
         self.role = defs.ROLE_UNKNOWN
         
         self.max_buf_size = max_buf_size
+
+        self.max_rx_msg_size = 0
+        self.max_tx_msg_size = 0
     
         return
 
     def log(self, message):
         print("[NodeComm] {}".format(message))
         return
+
+    def get_max_received_message_size(self):
+        return self.max_rx_msg_size
+
+    def get_max_sent_message_size(self):
+        return self.max_tx_msg_size
 
     def listen(self):
         # Note: Partially copied from:
@@ -78,6 +87,9 @@ class NodeComm():
         self.log("    Message Size: {} kb".format(message_size))
         self.log("    Elapsed Time: {} sec".format(elapsed_time))
 
+        if self.max_tx_msg_size < message_size:
+            self.max_tx_msg_size = message_size
+
         return
 
     def receive(self):
@@ -118,6 +130,9 @@ class NodeComm():
         self.log("    Rx Rate: {:5.2f} kb/sec".format(message_size / elapsed_time))
         self.log("    Message Size: {} kb".format(message_size))
         self.log("    Elapsed Time: {} sec".format(elapsed_time))
+
+        if self.max_rx_msg_size < message_size:
+            self.max_rx_msg_size = message_size
 
         return message.decode()
 

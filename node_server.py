@@ -18,14 +18,24 @@ class NodeServer(Node):
         return
 
     def save_results(self):
-        result_str = "{},{},{},{},{},{},{}\n".format(
+        for key in self.ts.keys():
+            if self.ts[key]["start"] == None:
+                self.ts[key]["start"] = 0
+
+            if self.ts[key]["end"] == None:
+                self.ts[key]["end"] = 0
+
+        result_str = "{},{},{},{},{},{},{},{},{},{}\n".format(
+                        self.encryption_mode,
                         str(datetime.datetime(1,1,1).now()),
                         self.max_buf_size,
                         self.data_size,
                         str(self.ts["overall"]["end"] - self.ts["overall"]["start"]),
                         str(self.ts["transmit_rcv"]["end"] - self.ts["transmit_rcv"]["start"]),
                         str(self.ts["transmit_xtr"]["end"] - self.ts["transmit_xtr"]["start"]),
-                        str(self.ts["evaluate"]["end"] - self.ts["evaluate"]["start"]) )
+                        str(self.ts["evaluate"]["end"] - self.ts["evaluate"]["start"]),
+                        str(self.cx.get_max_received_message_size()),
+                        str(self.cx.get_max_sent_message_size()) )
 
         should_write_headers = False
         if not os.path.isfile(defs.FN_SERVER_LOG): 
@@ -33,14 +43,18 @@ class NodeServer(Node):
 
         csv_file = open(defs.FN_SERVER_LOG, "a")
         if should_write_headers:
-            csv_file.write("{},{},{},{},{},{},{}\n".format(
+            csv_file.write("{},{},{},{},{},{},{},{},{},{}\n".format(
+                                "enc_mode",
                                 "ts",
                                 "max_buf_size",
                                 "data_size",
                                 "overall",
                                 "receive_data",
                                 "extract_data",
-                                "evaluate" ))
+                                "evaluate",
+                                "max_received_size",
+                                "max_sent_size" ))
+
         csv_file.write(result_str)
         csv_file.close()
         return
@@ -50,13 +64,13 @@ class NodeServer(Node):
         self.init_crypto_engine(use_old_keys=True)
 
         # Initialize Comms
-        cx = LWCommProtocol(max_buf_size=self.max_buf_size)
-        cx.listen()
+        self.cx = LWCommProtocol(max_buf_size=self.max_buf_size)
+        self.cx.listen()
 
         self.ts["overall"]["start"] = time.time()
         # Wait for and receive data
         self.ts["transmit_rcv"]["start"] = time.time()
-        msg = cx.receive()
+        msg = self.cx.receive()
         self.ts["transmit_rcv"]["end"] = time.time()
         # self.print_message(msg)
 
@@ -66,15 +80,15 @@ class NodeServer(Node):
         self.ts["transmit_xtr"]["end"] = time.time()
 
         # Send storage acknowledgement
-        cx.send(str({ 'code' : defs.RESP_ACK }))
+        self.cx.send(str({ 'code' : defs.RESP_ACK }))
 
         if self.encryption_mode == defs.ENC_MODE_FHE:
             # (FHE Mode/) Receive request
-            msg = cx.receive()
+            msg = self.cx.receive()
             request = self.extract_content(msg)
             if request == None:
                 self.log("Error: Content is empty")
-                cx.close()
+                self.cx.close()
                 return
 
             # self.log("Decoding request [{}]...".format(request['code']))
@@ -89,7 +103,7 @@ class NodeServer(Node):
                              'data' : [ result ] }
 
                 # Transmit back evaluated sample data
-                cx.send(str(response))
+                self.cx.send(str(response))
 
             elif request['code'] == defs.REQ_GET_DATA:
                 lower_idx = request['params']['lower_idx']
@@ -99,16 +113,16 @@ class NodeServer(Node):
                              'data' : data[lower_idx:higher_idx] }
 
                 # Transmit back raw sample data
-                cx.send(str(response))
+                self.cx.send(str(response))
 
             pass
 
         elif self.encryption_mode == defs.ENC_MODE_RSA:
-            msg = cx.receive()
+            msg = self.cx.receive()
             request = self.extract_content(msg)
             if request == None:
                 self.log("Error: Content is empty")
-                cx.close()
+                self.cx.close()
                 return
 
             self.log("Decoding request [{}]...".format(request['code']))
@@ -120,7 +134,7 @@ class NodeServer(Node):
                              'data' : data[lower_idx:higher_idx] }
 
                 # Transmit back raw sample data
-                cx.send(str(response))
+                self.cx.send(str(response))
 
         self.ts["overall"]["end"] = time.time()
 
@@ -129,7 +143,7 @@ class NodeServer(Node):
         self.save_results()
 
         # Close comms
-        cx.close()
+        self.cx.close()
 
         return
 

@@ -114,6 +114,7 @@ class FHECryptoEngine(CryptoEngine):
 
         # Pickle each Ciphertext, base64 encode it, and store it in the array
         for i in range(0, len(encrypted_data)):
+            encrypted_data[i].save("fhe_enc.bin")
             encrypted_data[i] = base64.b64encode( pickle.dumps(encrypted_data[i]) )
 
         return encrypted_data

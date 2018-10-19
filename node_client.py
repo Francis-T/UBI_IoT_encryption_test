@@ -2,13 +2,14 @@ import time
 import datetime
 import struct
 import os.path
+import sys
 
 import defs
 from lwcp import LWCommProtocol
 from node import Node
 
-LOWER_IDX = 25
-HIGHER_IDX = 50
+LOWER_IDX = 0
+HIGHER_IDX = -1
 
 class NodeClient(Node):
     def __init__(self, enc_mode=defs.ENC_MODE_DEFAULT,
@@ -17,6 +18,7 @@ class NodeClient(Node):
 
         Node.__init__(self, enc_mode=enc_mode, data_size=data_size, max_buf_size=max_buf_size)
         self.log_id = 'NodeClient'
+        self.ave_encrypted_data_size = 0.0
 
         return
 
@@ -25,7 +27,15 @@ class NodeClient(Node):
         return
 
     def save_results(self):
-        result_str = "{},{},{},{},{},{},{},{},{}\n".format(
+        for key in self.ts.keys():
+            if self.ts[key]["start"] == None:
+                self.ts[key]["start"] = 0
+
+            if self.ts[key]["end"] == None:
+                self.ts[key]["end"] = 0
+
+        result_str = "{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
+                        self.encryption_mode,
                         str(datetime.datetime(1,1,1).now()),
                         self.max_buf_size,
                         self.data_size,
@@ -34,7 +44,10 @@ class NodeClient(Node):
                         str(self.ts["transmit"]["end"] - self.ts["transmit"]["start"]),
                         str(self.ts["transmit_ack"]["end"] - self.ts["transmit_ack"]["start"]),
                         str(self.ts["req_result"]["end"] - self.ts["req_result"]["start"]),
-                        str(self.ts["decrypt"]["end"] - self.ts["decrypt"]["start"]) )
+                        str(self.ts["decrypt"]["end"] - self.ts["decrypt"]["start"]),
+                        str(self.cx.get_max_received_message_size()),
+                        str(self.cx.get_max_sent_message_size()),
+                        str(self.ave_encrypted_data_size) )
 
         should_write_headers = False
         if not os.path.isfile(defs.FN_CLIENT_LOG): 
@@ -42,7 +55,8 @@ class NodeClient(Node):
 
         csv_file = open(defs.FN_CLIENT_LOG, "a")
         if should_write_headers:
-            csv_file.write("{},{},{},{},{},{},{},{},{}\n".format(
+            csv_file.write("{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(
+                                "enc_mode",
                                 "ts",
                                 "max_buf_size",
                                 "data_size",
@@ -51,7 +65,10 @@ class NodeClient(Node):
                                 "transmit",
                                 "transmit_acknowledge",
                                 "request_results",
-                                "decrypt" ))
+                                "decrypt",
+                                "max_received_size",
+                                "max_sent_size",
+                                "ave_enc_data_size" ))
 
         csv_file.write(result_str)
         csv_file.close()
@@ -62,8 +79,8 @@ class NodeClient(Node):
         self.init_crypto_engine(use_old_keys=True)
 
         # Initialize Comms
-        cx = LWCommProtocol(max_buf_size=self.max_buf_size)
-        cx.connect()
+        self.cx = LWCommProtocol(max_buf_size=self.max_buf_size)
+        self.cx.connect()
 
         # Create the sample data
         sample_data = self.generate_data()
@@ -75,24 +92,30 @@ class NodeClient(Node):
         encrypted_sample_data = self.crypto_engine.encrypt(sample_data)
         self.ts["encrypt"]["end"] = time.time()
 
+        ave = 0.0
+        for enc_data in encrypted_sample_data:
+            ave += sys.getsizeof(enc_data)
+
+        self.ave_encrypted_data_size = ave / len(encrypted_sample_data)
+
         # Transmit the sample data
         self.log("Sending sample data...")
         self.ts["transmit"]["start"] = time.time()
-        cx.send(str(encrypted_sample_data))
+        self.cx.send(str(encrypted_sample_data))
         self.ts["transmit"]["end"]   = time.time()
 
         # Receive server acknowledge
         self.ts["transmit_ack"]["start"] = time.time()
-        msg = cx.receive()
+        msg = self.cx.receive()
         response = self.extract_content(msg)
         if response == None:
             self.log("Error: Node Server ACK not received!")
-            cx.close()
+            self.cx.close()
             return
 
         if response['code'] != defs.RESP_ACK:
             self.log("Error: Node Server ACK not received!")
-            cx.close()
+            self.cx.close()
             return
 
         self.ts["transmit_ack"]["end"] = time.time()
@@ -105,7 +128,7 @@ class NodeClient(Node):
                         'params' : { 'lower_idx' : LOWER_IDX, 
                                      'higher_idx' : HIGHER_IDX } }
 
-            cx.send(str(request))
+            self.cx.send(str(request))
 
             # TODO (FHE Mode) Encrypt operation for sample data
             # TODO (FHE Mode) Transmit operation for sample data
@@ -113,7 +136,7 @@ class NodeClient(Node):
             # Receive data from server node
             server_data = None
 
-            msg = cx.receive()
+            msg = self.cx.receive()
             response = self.extract_content(msg)
             if response['code'] == defs.RESP_DATA:
                 server_data = response['data']
@@ -132,12 +155,12 @@ class NodeClient(Node):
             request = { 'code' : defs.REQ_GET_DATA,
                         'params' : { 'lower_idx' : LOWER_IDX, 
                                      'higher_idx' : HIGHER_IDX } }
-            cx.send(str(request))
+            self.cx.send(str(request))
 
             # Receive data from server node
             server_data = None
 
-            msg = cx.receive()
+            msg = self.cx.receive()
             response = self.extract_content(msg)
             if response['code'] == defs.RESP_DATA:
                 server_data = response['data']
@@ -181,7 +204,7 @@ class NodeClient(Node):
         self.save_results()
 
         # Close comms
-        cx.close()
+        self.cx.close()
 
         return
 
